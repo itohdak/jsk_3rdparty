@@ -23,11 +23,15 @@ fi
 
 nkf -s $INPUT_FILE > $JPTEXT_FILE
 
-rosservice call voice_text/text_to_speech \
-"
-text_path: '$JPTEXT_FILE'
-wave_path: '$OUTPUT_FILE'
-"
+echo "hoge1"
+# rosservice call voice_text/text_to_speech \
+# "
+# text_path: '$JPTEXT_FILE'
+# wave_path: '$OUTPUT_FILE'
+# "
+SCRIPT_DIR=$(cd $(dirname $0); pwd)
+python $SCRIPT_DIR/../scripts/text_to_speech_client.py $JPTEXT_FILE $OUTPUT_FILE
+echo "hoge2"
 
 rm -f $JPTEXT_FILE
 
