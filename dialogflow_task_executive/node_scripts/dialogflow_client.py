@@ -181,7 +181,7 @@ class DialogflowClient(object):
         msg = SoundRequest(
             command=SoundRequest.PLAY_ONCE,
             sound=SoundRequest.SAY,
-            volume=1.0,
+            # volume=1.0,
             arg=result.fulfillment_text.encode('utf-8'),
             arg2=self.language)
         self.sound_action.send_goal_and_wait(
