@@ -1,5 +1,6 @@
 <launch>
   <arg name="run_app_manager" default="false" />
+  <arg name="applist" default="" />
   <arg name="credential" default="$(env GOOGLE_APPLICATION_CREDENTIALS)"/>
   <arg name="project_id" default="$(env DIALOGFLOW_PROJECT_ID)"/>
 
