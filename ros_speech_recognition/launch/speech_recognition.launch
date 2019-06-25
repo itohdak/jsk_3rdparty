@@ -5,6 +5,8 @@
   <arg name="engine" default="Google" />
   <arg name="language" default="en-US" />
   <arg name="continuous" default="false" />
+  <arg name="google_cloud_credentials_json"
+       default="/etc/opt/jsk/robot/google-speech-recognition.json" />
 
   <!-- sound play -->
   <node name="sound_play" pkg="sound_play" type="soundplay_node.py"
@@ -33,6 +35,7 @@
       engine: $(arg engine)
       language: $(arg language)
       continuous: $(arg continuous)
+      google_cloud_credentials_json: $(arg google_cloud_credentials_json)
     </rosparam>
   </node>
 </launch>
