@@ -12,7 +12,7 @@
     <arg name="credential" value="$(arg credential)" />
     <arg name="project_id" value="$(arg project_id)" />
     <arg name="run_app_manager" value="true" />
-    <arg name="applist" value="$(find hrp2_73b2_demo_2019/apps" />
+    <arg name="applist" value="$(find hrp2_73b2_demo_2019)/apps" />
   </include>
 
   <!-- sound play -->
@@ -34,7 +34,7 @@
     </rosparam>
   </node>
 
-  <node name="speech_recognition"
+  <node name="speech_recognition_dialogflow"
         pkg="ros_speech_recognition" type="speech_recognition_node.py"
         respawn="true"
         output="screen">
