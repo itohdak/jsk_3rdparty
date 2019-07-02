@@ -42,12 +42,10 @@
 
   <!-- app manager -->
   <group if="$(arg run_app_manager)">
-    <node pkg="app_manager" type="appmaster" name="appmaster"
-          args="-p 11313"/>
-    <node pkg="app_manager" type="app_manager" name="app_manager"
-          args="--applist $(arg applist)"
-          output="screen">
-      <param name="interface_master" value="http://localhost:11313"/>
-    </node>
+    <include file="$(find jsk_robot_startup)/lifelog/app_manager.launch">
+      <arg name="use_applist" value="true" />
+      <arg name="applist" value="$(arg applist)"/>
+      <arg name="respawn" value="false" />
+    </include>
   </group>
 </launch>
