@@ -39,11 +39,18 @@ import hmac
 import time
 import uuid
 
-class MyRecognizer(SR.Recognizer): # overload listen and listen_in_background
-    def __init__(self):
+class MyRecognizer(SR.Recognizer): # overloading SR.Recognizer.listen and SR.Recognizer.listen_in_background
+    def __init__(self, _loud_rate):
         super(MyRecognizer, self).__init__()
+        self.is_speaking = False
+        self.is_speaking_loud = False
+        self.loud_rate = _loud_rate
 
-    def listen(self, source, timeout=None, phrase_time_limit=None, snowboy_configuration=None, publisher=None):
+    @property
+    def energy_threshold_loud(self):
+        return self.energy_threshold * self.loud_rate
+
+    def listen(self, source, timeout=None, phrase_time_limit=None, snowboy_configuration=None, publisher=None, publisher_loud=None):
         """
         Records a single phrase from ``source`` (an ``AudioSource`` instance) into an ``AudioData`` instance, which it returns.
 
@@ -116,8 +123,9 @@ class MyRecognizer(SR.Recognizer): # overload listen and listen_in_background
                 if phrase_time_limit and elapsed_time - phrase_start_time > phrase_time_limit:
                     break
 
-                if publisher and phrase_count == 0:
+                if publisher and not self.is_speaking:
                     publisher.publish(Bool(data=True))
+                self.is_speaking = True
 
                 buffer = source.stream.read(source.CHUNK)
                 if len(buffer) == 0: break  # reached end of the stream
@@ -128,10 +136,21 @@ class MyRecognizer(SR.Recognizer): # overload listen and listen_in_background
                 energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # unit energy of the audio signal within the buffer
                 if energy > self.energy_threshold:
                     pause_count = 0
+                    if energy > self.energy_threshold_loud and not self.is_speaking_loud:
+                        self.is_speaking_loud = True
+                        if publisher_loud:
+                            publisher_loud.publish(Bool(data=True))
                 else:
                     pause_count += 1
                 if pause_count > pause_buffer_count:  # end of the phrase
                     break
+
+            if publisher:
+                publisher.publish(Bool(data=False))
+            if publisher_loud and self.is_speaking_loud:
+                publisher_loud.publish(Bool(data=False))
+            self.is_speaking = False
+            self.is_speaking_loud = False
 
             # check how long the detected phrase is, and retry listening if the phrase is too short
             phrase_count -= pause_count  # exclude the buffers for the pause before the phrase
@@ -143,7 +162,7 @@ class MyRecognizer(SR.Recognizer): # overload listen and listen_in_background
 
         return SR.AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
 
-    def listen_in_background(self, source, callback, phrase_time_limit=None, publisher=None):
+    def listen_in_background(self, source, callback, phrase_time_limit=None, publisher=None, publisher_loud=None):
         """
         Spawns a thread to repeatedly record phrases from ``source`` (an ``AudioSource`` instance) into an ``AudioData`` instance and call ``callback`` with that ``AudioData`` instance as soon as each phrase are detected.
         Returns a function object that, when called, requests that the background listener thread stop. The background thread is a daemon and will not stop the program from exiting if there are no other non-daemon threads. The function accepts one parameter, ``wait_for_stop``: if truthy, the function will wait for the background listener to stop before returning, otherwise it will return immediately and the background listener thread might still be running for a second or two afterwards. Additionally, if you are using a truthy value for ``wait_for_stop``, you must call the function from the same thread you originally called ``listen_in_background`` from.
@@ -157,14 +176,11 @@ class MyRecognizer(SR.Recognizer): # overload listen and listen_in_background
             with source as s:
                 while running[0]:
                     try:  # listen for 1 second, then check again if the stop function has been called
-                        audio = self.listen(s, 1, phrase_time_limit, publisher=publisher)
+                        audio = self.listen(s, 1, phrase_time_limit, publisher=publisher, publisher_loud=publisher_loud)
                     except SR.WaitTimeoutError:  # listening timed out, just try again
                         pass
                     else:
-                        if running[0]:
-                            if publisher:
-                                publisher.publish(Bool(data=False))
-                            callback(self, audio)
+                        if running[0]: callback(self, audio)
 
         def stopper(wait_for_stop=True):
             running[0] = False
@@ -253,7 +269,8 @@ class ROSSpeechRecognition(object):
     def __init__(self):
         self.default_duration = rospy.get_param("~duration", 10.0)
         self.engine = None
-        self.recognizer = MyRecognizer() # SR.Recognizer()
+        self.recognizer = MyRecognizer(rospy.get_param("~rate_loud", 50.0))
+        # self.recognizer = SR.Recognizer()
         self.audio = ROSAudio(topic_name="audio",
                               depth=rospy.get_param("~depth", 16),
                               sample_rate=rospy.get_param("~sample_rate", 16000))
@@ -290,6 +307,9 @@ class ROSSpeechRecognition(object):
         self.pub_is_speaking = rospy.Publisher("is_speaking",
                                                Bool,
                                                queue_size=1)
+        self.pub_is_speaking_loud = rospy.Publisher("is_speaking_loud",
+                                                    Bool,
+                                                    queue_size=1)
 
     def config_callback(self, config, level):
         # config for engine
@@ -395,7 +415,7 @@ class ROSSpeechRecognition(object):
                 rospy.loginfo("Set minimum energy threshold to {}".format(
                     self.recognizer.energy_threshold))
         self.stop_fn = self.recognizer.listen_in_background(
-            self.audio, self.audio_cb, phrase_time_limit=self.phrase_time_limit, publisher=self.pub_is_speaking)
+            self.audio, self.audio_cb, phrase_time_limit=self.phrase_time_limit, publisher=self.pub_is_speaking, publisher_loud=self.pub_is_speaking_loud)
         rospy.on_shutdown(self.on_shutdown)
 
     def on_shutdown(self):
